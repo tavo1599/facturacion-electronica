@@ -1,0 +1,71 @@
+server:
+  port: 8080
+
+sunat:
+  endpoints:
+    # SOAP - Facturas, Boletas, Notas, Bajas, Resúmenes
+    beta: "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService"
+    produccion: "https://e-factura.sunat.gob.pe/ol-ti-itcpfegem/billService"
+    # SOAP - Retenciones y Percepciones (CPE-GEM SFS)
+    cpegem-beta: "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-sfs/billService"
+    cpegem-produccion: "https://e-factura.sunat.gob.pe/ol-ti-itcpfegem-sfs/billService"
+    # SOAP - Guías de Remisión (beta)
+    guia-beta: "https://e-beta.sunat.gob.pe/ol-ti-itemision-guia-gem-beta/billService"
+    guia-produccion: "https://e-factura.sunat.gob.pe/ol-ti-itemision-guia-gem/billService"
+    # REST - Guías de Remisión (GRE)
+    rest-beta: "https://gre-test.nubefact.com/v1/contribuyente/gem"
+    rest-produccion: "https://api-cpe.sunat.gob.pe/v1/contribuyente/gem"
+    # OAuth2 Token
+    oauth2-beta: "https://gre-test.nubefact.com/v1/clientessol"
+    oauth2-produccion: "https://api-seguridad.sunat.gob.pe/v1/clientessol"
+
+  # Credenciales OAuth2 para GRE beta (Nubefact test)
+  gre:
+    beta:
+      client-id: "test-85e5b0ae-255c-4891-a595-0b98c65c9854"
+      client-secret: "test-Hty/M6QshYvPgItX2P0+Kw=="
+    produccion:
+      client-id: ""
+      client-secret: ""
+
+  # Ruta base donde se almacenan los certificados por RUC
+  # Estructura: {certificates-base-path}/{ruc}/certificate.pfx
+  #             {certificates-base-path}/{ruc}/certificate.password
+  certificates-base-path: "./certificates"
+
+# Directorios de almacenamiento por ambiente y RUC
+# Estructura: {path}/{ambiente}/{ruc}/archivo
+storage:
+  xml-path: "./generated-xml"
+  zip-path: "./generated-zip"
+  cdr-path: "./received-cdr"
+  bajas-path: "./generated-bajas"
+  resumenes-path: "./generated-resumenes"
+  guias-path: "./generated-guias"
+  retenciones-path: "./generated-retenciones"
+  percepciones-path: "./generated-percepciones"
+
+# Polling de tickets (Bajas y Resúmenes)
+ticket:
+  polling:
+    enabled: true
+    interval: 30000
+    max-retries: 20
+    storage-path: "./pending-tickets.json"
+
+# Tamaño máximo para upload de certificados
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Swagger UI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
