@@ -34,6 +34,96 @@ public class SunatRestService {
     }
 
     /**
+     * Consulta el estado de un ticket GRE asíncrono.
+     * GET /v1/contribuyente/gem/comprobantes/{numTicket}
+     * Devuelve pending=true si SUNAT aún está procesando (numEstado=1).
+     */
+    public RestResponse consultarTicketGuia(String ticket, EmpresaDTO empresa) {
+        String token = oauth2Service.getAccessToken(empresa);
+        String baseEndpoint = config.getRestEndpoint(empresa.getAmbiente());
+        String url = baseEndpoint + "/comprobantes/envios/" + ticket;
+
+        log.info("=== CONSULTA TICKET GRE ===");
+        log.info("  Ambiente    : {}", empresa.getAmbiente());
+        log.info("  Base endpoint: {}", baseEndpoint);
+        log.info("  URL completa : {}", url);
+        log.info("  Ticket      : {}", ticket);
+        log.info("  Token (10c) : {}...", token != null && token.length() > 10 ? token.substring(0, 10) : token);
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = webClient.get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            log.info("  Respuesta raw: {}", response);
+
+            RestResponse result = new RestResponse();
+            if (response == null) {
+                log.warn("  → Respuesta NULL de SUNAT (pending=true)");
+                result.setPending(true);
+                result.setMessage("Sin respuesta de SUNAT");
+                return result;
+            }
+
+            log.info("  Claves recibidas: {}", response.keySet());
+            for (Map.Entry<String, Object> entry : response.entrySet()) {
+                String v = entry.getValue() != null ? entry.getValue().toString() : "null";
+                String display = v.length() > 80 ? v.substring(0, 80) + "..." : v;
+                log.info("    {} = {}", entry.getKey(), display);
+            }
+
+            Object numEstado = response.get("numEstado");
+            log.info("  numEstado={}", numEstado);
+
+            if (numEstado != null && "1".equals(String.valueOf(numEstado))) {
+                log.info("  → En proceso (numEstado=1), pending=true");
+                result.setPending(true);
+                result.setMessage("En proceso");
+            } else if (response.containsKey("codRespuesta")) {
+                String code = String.valueOf(response.get("codRespuesta"));
+                // codRespuesta=0 → desRespuesta; codRespuesta=99 → error.desError
+                String des = extractDescription(response);
+                boolean hasCdr = response.containsKey("arcCdr");
+                log.info("  → codRespuesta={}, descripcion={}, arcCdr={}", code, des, hasCdr);
+                result.setSuccess("0".equals(code));
+                result.setResponseCode(code);
+                result.setDescription(des);
+                if (hasCdr) {
+                    result.setCdrBase64((String) response.get("arcCdr"));
+                }
+            } else {
+                log.warn("  → Respuesta sin numEstado ni codRespuesta — keys: {}", response.keySet());
+                result.setPending(true);
+                result.setMessage("Respuesta inesperada, reintentando...");
+            }
+            return result;
+
+        } catch (WebClientResponseException e) {
+            log.error("=== ERROR HTTP CONSULTANDO TICKET GRE ===");
+            log.error("  URL          : {}", url);
+            log.error("  HTTP Status  : {}", e.getStatusCode());
+            log.error("  Response body: {}", e.getResponseBodyAsString());
+            log.error("  Headers      : {}", e.getHeaders());
+            RestResponse error = new RestResponse();
+            error.setSuccess(false);
+            error.setMessage("Error consultando ticket " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+            return error;
+        } catch (Exception e) {
+            log.error("=== EXCEPCIÓN CONSULTANDO TICKET GRE ===");
+            log.error("  URL  : {}", url);
+            log.error("  Error: {}", e.getMessage(), e);
+            RestResponse error = new RestResponse();
+            error.setSuccess(false);
+            error.setMessage("Error consultando ticket: " + e.getMessage());
+            return error;
+        }
+    }
+
+    /**
      * Envía una guía de remisión via REST a SUNAT GRE.
      * POST /v1/contribuyente/gem/comprobantes/{numRucEmisor}-{codCpe}-{numSerie}-{numCpe}
      */
@@ -42,13 +132,16 @@ public class SunatRestService {
         String endpoint = config.getRestEndpoint(empresa.getAmbiente());
         String url = endpoint + "/comprobantes/" + nombreArchivo;
 
-        log.info("Enviando guía REST a SUNAT: {} → {}", nombreArchivo, url);
+        log.info("=== ENVÍO GUÍA GRE REST ===");
+        log.info("  URL         : {}", url);
+        log.info("  Archivo     : {}", nombreArchivo);
+        log.info("  ZIP bytes   : {}", zipContent.length);
+        log.info("  Token (10c) : {}...", token != null && token.length() > 10 ? token.substring(0, 10) : token);
 
         try {
-            // La API GRE espera JSON con el ZIP en Base64
             String zipBase64 = Base64.getEncoder().encodeToString(zipContent);
-            // El hashZip es SHA-256 del archivo ZIP (bytes originales) en hexadecimal
             String hashZip = generateSha256(zipContent);
+            log.info("  hashZip (SHA-256): {}", hashZip);
 
             Map<String, Object> archivo = new HashMap<>();
             archivo.put("nomArchivo", nombreArchivo + ".zip");
@@ -57,6 +150,9 @@ public class SunatRestService {
 
             Map<String, Object> body = new HashMap<>();
             body.put("archivo", archivo);
+
+            log.info("  Body keys   : {}", body.keySet());
+            log.info("  archivo.nomArchivo: {}", nombreArchivo + ".zip");
 
             @SuppressWarnings("unchecked")
             Map<String, Object> response = webClient.post()
@@ -68,14 +164,18 @@ public class SunatRestService {
                     .bodyToMono(Map.class)
                     .block();
 
+            log.info("  Respuesta raw: {}", response);
+
             RestResponse result = new RestResponse();
 
             if (response != null) {
-                // SUNAT puede retornar un ticket (procesamiento asíncrono) o CDR directo
+                log.info("  Claves recibidas: {}", response.keySet());
                 if (response.containsKey("numTicket")) {
                     result.setSuccess(true);
+                    result.setPending(true);
                     result.setTicket((String) response.get("numTicket"));
                     result.setMessage("Guía enviada, ticket: " + result.getTicket());
+                    log.info("  → Ticket asíncrono: {}", result.getTicket());
                 } else if (response.containsKey("codRespuesta")) {
                     String code = String.valueOf(response.get("codRespuesta"));
                     result.setSuccess("0".equals(code));
@@ -85,28 +185,51 @@ public class SunatRestService {
                     if (response.containsKey("arcCdr")) {
                         result.setCdrBase64((String) response.get("arcCdr"));
                     }
+                    log.info("  → CDR directo: code={}, desc={}", code, result.getDescription());
                 } else {
                     result.setSuccess(true);
                     result.setMessage("Respuesta recibida de SUNAT");
+                    log.warn("  → Respuesta sin ticket ni codRespuesta, keys: {}", response.keySet());
                 }
+            } else {
+                log.warn("  → Respuesta NULL de SUNAT en sendGuia");
             }
 
-            log.info("Respuesta REST SUNAT: success={}, ticket={}", result.isSuccess(), result.getTicket());
+            log.info("  Resultado: success={}, pending={}, ticket={}", result.isSuccess(), result.isPending(), result.getTicket());
             return result;
 
         } catch (WebClientResponseException e) {
-            log.error("Error REST SUNAT: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("=== ERROR HTTP ENVIANDO GUÍA GRE ===");
+            log.error("  URL          : {}", url);
+            log.error("  HTTP Status  : {}", e.getStatusCode());
+            log.error("  Response body: {}", e.getResponseBodyAsString());
+            log.error("  Headers      : {}", e.getHeaders());
             RestResponse error = new RestResponse();
             error.setSuccess(false);
             error.setMessage("Error SUNAT REST " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
             return error;
         } catch (Exception e) {
-            log.error("Error al enviar guía REST: {}", e.getMessage());
+            log.error("=== EXCEPCIÓN ENVIANDO GUÍA GRE ===");
+            log.error("  Error: {}", e.getMessage(), e);
             RestResponse error = new RestResponse();
             error.setSuccess(false);
             error.setMessage("Error: " + e.getMessage());
             return error;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractDescription(Map<String, Object> response) {
+        Object des = response.get("desRespuesta");
+        if (des != null && !"null".equals(des.toString())) {
+            return des.toString();
+        }
+        Object errorObj = response.get("error");
+        if (errorObj instanceof Map) {
+            Map<String, Object> error = (Map<String, Object>) errorObj;
+            return "Error " + error.get("numError") + ": " + error.get("desError");
+        }
+        return null;
     }
 
     private String generateSha256(byte[] data) {
@@ -128,6 +251,7 @@ public class SunatRestService {
 
     public static class RestResponse {
         private boolean success;
+        private boolean pending;
         private String message;
         private String ticket;
         private String responseCode;
@@ -136,6 +260,8 @@ public class SunatRestService {
 
         public boolean isSuccess() { return success; }
         public void setSuccess(boolean success) { this.success = success; }
+        public boolean isPending() { return pending; }
+        public void setPending(boolean pending) { this.pending = pending; }
         public String getMessage() { return message; }
         public void setMessage(String message) { this.message = message; }
         public String getTicket() { return ticket; }

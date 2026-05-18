@@ -28,7 +28,8 @@ public class GuiaRemisionController {
             description = "Genera XML UBL 2.1, firma, comprime y envía a SUNAT")
     @PostMapping("/emitir")
     public ResponseEntity<GuiaRemisionResponseDTO> emitirGuia(
-            @Valid @RequestBody GuiaRemisionRequestDTO request) {
+            @RequestBody GuiaRemisionRequestDTO request) {
+        System.out.println("request: "+request.toString());
 
         log.info(">>> Guía de remisión: {} {}", request.getTipoGuia(), request.getSerieCorrelativo());
 

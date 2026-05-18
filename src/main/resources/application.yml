@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8089
 
 sunat:
   endpoints:
@@ -52,6 +52,10 @@ ticket:
     interval: 30000
     max-retries: 20
     storage-path: "./pending-tickets.json"
+  # Polling síncrono de tickets GRE (Guías de Remisión)
+  gre:
+    max-retries: 10
+    wait-seconds: 3
 
 # Tamaño máximo para upload de certificados
 spring:

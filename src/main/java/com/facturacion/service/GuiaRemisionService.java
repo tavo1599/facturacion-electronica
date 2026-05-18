@@ -29,6 +29,12 @@ public class GuiaRemisionService {
     @Value("${storage.guias-path:./generated-guias}")
     private String basePath;
 
+    @Value("${ticket.gre.max-retries:10}")
+    private int greMaxRetries;
+
+    @Value("${ticket.gre.wait-seconds:3}")
+    private int greWaitSeconds;
+
     public GuiaRemisionService(GuiaRemisionXmlBuilderService xmlBuilder,
                                SignatureService signatureService,
                                XmlUtilService xmlUtilService,
@@ -87,6 +93,12 @@ public class GuiaRemisionService {
                 // Envío REST (producción o cuando hay credenciales OAuth2)
                 SunatRestService.RestResponse restResponse =
                         sunatRestService.sendGuia(nombreBase, zipBytes, empresa);
+
+                if (restResponse.isPending() && restResponse.getTicket() != null) {
+                    log.info("Ticket GRE recibido: {}. Iniciando polling...", restResponse.getTicket());
+                    restResponse = pollTicketGuia(restResponse.getTicket(), empresa);
+                }
+
                 success = restResponse.isSuccess();
                 responseCode = restResponse.getResponseCode();
                 description = restResponse.getDescription() != null
@@ -142,6 +154,44 @@ public class GuiaRemisionService {
 
     private String resolveAmbiente(String ambiente) {
         return "produccion".equalsIgnoreCase(ambiente) ? "produccion" : "beta";
+    }
+
+    private SunatRestService.RestResponse pollTicketGuia(String ticket, EmpresaDTO empresa) {
+        log.info("=== INICIO POLLING TICKET GRE ===");
+        log.info("  Ticket      : {}", ticket);
+        log.info("  Max reintentos: {}", greMaxRetries);
+        log.info("  Espera entre intentos: {}s", greWaitSeconds);
+
+        for (int i = 1; i <= greMaxRetries; i++) {
+            log.info("--- Polling intento {}/{} para ticket {} ---", i, greMaxRetries, ticket);
+            try {
+                Thread.sleep(greWaitSeconds * 1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("  Polling interrumpido en intento {}", i);
+                SunatRestService.RestResponse interrupted = new SunatRestService.RestResponse();
+                interrupted.setSuccess(false);
+                interrupted.setMessage("Polling interrumpido para ticket: " + ticket);
+                return interrupted;
+            }
+
+            SunatRestService.RestResponse r = sunatRestService.consultarTicketGuia(ticket, empresa);
+            log.info("  Resultado intento {}: pending={}, success={}, code={}, desc={}, tieneCdr={}",
+                    i, r.isPending(), r.isSuccess(), r.getResponseCode(), r.getDescription(), r.getCdrBase64() != null);
+
+            if (!r.isPending()) {
+                log.info("=== TICKET RESUELTO en intento {} ===", i);
+                log.info("  success={}, code={}, desc={}", r.isSuccess(), r.getResponseCode(), r.getDescription());
+                return r;
+            }
+            log.info("  Ticket {} aún en proceso, esperando {}s más...", ticket, greWaitSeconds);
+        }
+
+        log.warn("=== TIMEOUT TICKET GRE: {} ({} intentos agotados) ===", ticket, greMaxRetries);
+        SunatRestService.RestResponse timeout = new SunatRestService.RestResponse();
+        timeout.setSuccess(false);
+        timeout.setMessage("Timeout: CDR no recibido para ticket " + ticket);
+        return timeout;
     }
 
     /**
