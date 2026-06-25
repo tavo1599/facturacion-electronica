@@ -1,0 +1,61 @@
+# Build outputs
+target/
+build/
+out/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensibles - CRÍTICO no subir
+.env
+*.pfx
+*.p12
+*.password
+*.keystore
+*.jks
+application-local.properties
+application-local.yml
+application-prod.yml
+src/main/resources/certificates/
+certificates/
+
+# Datos generados (no subir)
+generated-xml/
+generated-zip/
+received-cdr/
+generated-bajas/
+generated-resumenes/
+generated-guias/
+generated-retenciones/
+generated-percepciones/
+pending-tickets.json
+
+# Tests
+src/test/
