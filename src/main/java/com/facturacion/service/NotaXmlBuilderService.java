@@ -108,7 +108,7 @@ public class NotaXmlBuilderService {
         buildTaxTotal(doc, root, nota);
 
         // 15. LegalMonetaryTotal
-        buildLegalMonetaryTotal(doc, root, nota);
+        buildLegalMonetaryTotal(doc, root, nota, esCreditNote);
 
         // 16. Líneas de detalle
         String lineTag = esCreditNote ? "CreditNoteLine" : "DebitNoteLine";
@@ -323,9 +323,10 @@ public class NotaXmlBuilderService {
         parent.appendChild(taxSubtotal);
     }
 
-    private void buildLegalMonetaryTotal(Document doc, Element root, NotaRequestDTO nota) {
-        // Para Notas se usa RequestedMonetaryTotal (no LegalMonetaryTotal)
-        Element monetaryTotal = doc.createElementNS(NS_CAC, "cac:RequestedMonetaryTotal");
+private void buildLegalMonetaryTotal(Document doc, Element root, NotaRequestDTO nota, boolean esCreditNote) {
+        // Nota de Crédito usa LegalMonetaryTotal; Nota de Débito usa RequestedMonetaryTotal
+        String totalTag = esCreditNote ? "cac:LegalMonetaryTotal" : "cac:RequestedMonetaryTotal";
+        Element monetaryTotal = doc.createElementNS(NS_CAC, totalTag);
         String moneda = nota.getMoneda();
 
         Element lineExtension = addCbcElement(doc, monetaryTotal, "LineExtensionAmount",

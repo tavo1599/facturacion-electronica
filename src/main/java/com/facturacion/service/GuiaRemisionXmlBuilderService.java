@@ -140,16 +140,37 @@ public class GuiaRemisionXmlBuilderService {
         }
 
         // Conductor (modalidad privada 02)
-        if ("02".equals(request.getModalidadTransporte()) && request.getConductorNumeroDocumento() != null) {
-            Element driverPerson = doc.createElementNS(NS_CAC, "cac:DriverPerson");
-            Element driverId = addCbcElement(doc, driverPerson, "ID", request.getConductorNumeroDocumento());
-            driverId.setAttribute("schemeID", request.getConductorTipoDocumento());
-            addCbcElement(doc, driverPerson, "FirstName", request.getConductorNombre());
-            if (request.getConductorLicencia() != null) {
-                addCbcElement(doc, driverPerson, "JobTitle", request.getConductorLicencia());
-            }
-            shipmentStage.appendChild(driverPerson);
-        }
+        // Conductor (modalidad privada 02)
+if ("02".equals(request.getModalidadTransporte()) && request.getConductorNumeroDocumento() != null) {
+    Element driverPerson = doc.createElementNS(NS_CAC, "cac:DriverPerson");
+    
+    // DNI del conductor
+    Element driverId = addCbcElement(doc, driverPerson, "ID", request.getConductorNumeroDocumento());
+    driverId.setAttribute("schemeID", request.getConductorTipoDocumento());
+    driverId.setAttribute("schemeName", "Documento de Identidad");
+    driverId.setAttribute("schemeAgencyName", "PE:SUNAT");
+    driverId.setAttribute("schemeURI", "urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo06");
+    
+    // Nombres del conductor
+    if (request.getConductorNombre() != null) {
+        addCbcElement(doc, driverPerson, "FirstName", request.getConductorNombre());
+    }
+    
+    // FamilyName: SUNAT lo requiere
+    addCbcElement(doc, driverPerson, "FamilyName", request.getConductorNombre() != null ? request.getConductorNombre() : "Conductor");
+    
+    // JobTitle es REQUERIDO con valor "Principal" (no la licencia)
+    addCbcElement(doc, driverPerson, "JobTitle", "Principal");
+    
+    // Licencia: va en cac:IdentityDocumentReference
+    if (request.getConductorLicencia() != null) {
+        Element idDocRef = doc.createElementNS(NS_CAC, "cac:IdentityDocumentReference");
+        addCbcElement(doc, idDocRef, "ID", request.getConductorLicencia());
+        driverPerson.appendChild(idDocRef);
+    }
+    
+    shipmentStage.appendChild(driverPerson);
+}
 
         shipment.appendChild(shipmentStage);
 

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import random, string; print\\(''.join\\(random.choices\\(string.ascii_lowercase + string.digits, k=52\\)\\)\\)\")",
+      "Bash(curl -s -b /tmp/sunat.cookies -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' -H 'Accept-Language: es-PE,es;q=0.9,en;q=0.8' -H 'Referer: https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias' -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode accion=consPorRuc --data-urlencode nroRuc=20131312955 --data-urlencode token=__TRACKED_VAR__ --data-urlencode contexto=ti-it --data-urlencode modo=1 --data-urlencode razSoc= --data-urlencode nrodoc= --data-urlencode tipdoc=1 https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias -o /tmp/sunat_result.html)",
+      "Bash(echo \"Exit code: $?\")",
+      "Read(//tmp/**)"
+    ]
+  }
+}
