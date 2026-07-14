@@ -12,6 +12,7 @@ import org.w3c.dom.Element;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -79,9 +80,17 @@ public class XmlBuilderService {
         typeCode.setAttribute("listID", comprobante.getTipoOperacion());
 
         // 9. Note - Leyenda (monto en letras)
+        // 9. Note - Leyenda (monto en letras)
         Element note = addCbcElement(doc, root, "Note",
                 MontoEnLetras.convertir(comprobante.getImporteTotal(), comprobante.getMoneda()));
         note.setAttribute("languageLocaleID", "1000");
+
+        // 9.1 Nota SPOT (Sistema de Pago de Obligaciones Tributarias) - solo si hay detracción
+        if (Boolean.TRUE.equals(comprobante.getTieneDetraccion())) {
+            Element noteSpot = addCbcElement(doc, root, "Note",
+                    "Operación sujeta al Sistema de Pago de Obligaciones Tributarias");
+            noteSpot.setAttribute("languageLocaleID", "2006");
+        }
 
         // 10. DocumentCurrencyCode - Moneda
         addCbcElement(doc, root, "DocumentCurrencyCode", comprobante.getMoneda());
@@ -94,8 +103,14 @@ public class XmlBuilderService {
         // 12. AccountingSupplierParty (datos del emisor)
         buildSupplierParty(doc, root, empresa);
 
-        // 13. AccountingCustomerParty (datos del cliente)
+       // 13. AccountingCustomerParty (datos del cliente)
         buildCustomerParty(doc, root, comprobante);
+
+        // 13.1 Detracción SUNAT (SOLO si aplica) - antes de PaymentTerms
+        if (Boolean.TRUE.equals(comprobante.getTieneDetraccion())) {
+            buildPaymentMeansDetraccion(doc, root, comprobante);
+            buildPaymentTermsDetraccion(doc, root, comprobante);
+        }
 
         // 14. PaymentTerms (forma de pago)
         buildPaymentTerms(doc, root, comprobante);
@@ -474,4 +489,87 @@ public class XmlBuilderService {
         parent.appendChild(element);
         return element;
     }
+
+    // ============================================================
+    // MÉTODOS NUEVOS: DETRACCIÓN SUNAT
+    // ============================================================
+
+    /**
+     * Genera el bloque PaymentMeans para detracción.
+     * Contiene el número de cuenta del Banco de la Nación del emisor.
+     */
+    private void buildPaymentMeansDetraccion(Document doc, Element root,
+                                              ComprobanteRequestDTO comprobante) {
+        EmpresaDTO empresa = comprobante.getEmpresa();
+
+        if (empresa.getCuentaDetraccionBN() == null || empresa.getCuentaDetraccionBN().isBlank()) {
+            throw new IllegalArgumentException(
+                "La empresa no tiene cuenta de detracción del Banco de la Nación configurada"
+            );
+        }
+
+        // <cac:PaymentMeans>
+        Element paymentMeans = doc.createElementNS(NS_CAC, "cac:PaymentMeans");
+
+        // <cbc:ID>Detraccion</cbc:ID>
+        addCbcElement(doc, paymentMeans, "ID", "Detraccion");
+
+        // <cbc:PaymentMeansCode>003</cbc:PaymentMeansCode>
+        Element paymentMeansCode = addCbcElement(doc, paymentMeans, "PaymentMeansCode", "003");
+        paymentMeansCode.setAttribute("listAgencyName", "PE:SUNAT");
+        paymentMeansCode.setAttribute("listName", "Medio de pago");
+        paymentMeansCode.setAttribute("listURI", "urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo59");
+
+        // <cac:PayeeFinancialAccount>
+        Element payeeAccount = doc.createElementNS(NS_CAC, "cac:PayeeFinancialAccount");
+
+        // <cbc:ID>[cuenta BN]</cbc:ID>
+        addCbcElement(doc, payeeAccount, "ID", empresa.getCuentaDetraccionBN());
+
+        paymentMeans.appendChild(payeeAccount);
+        root.appendChild(paymentMeans);
+    }
+
+    /**
+     * Genera el bloque PaymentTerms para detracción con código, porcentaje y monto.
+     */
+    private void buildPaymentTermsDetraccion(Document doc, Element root,
+                                              ComprobanteRequestDTO comprobante) {
+        if (comprobante.getCodigoDetraccion() == null || comprobante.getCodigoDetraccion().isBlank()) {
+            throw new IllegalArgumentException("Código de detracción es obligatorio");
+        }
+        if (comprobante.getPorcentajeDetraccion() == null) {
+            throw new IllegalArgumentException("Porcentaje de detracción es obligatorio");
+        }
+        if (comprobante.getMontoDetraccion() == null) {
+            throw new IllegalArgumentException("Monto de detracción es obligatorio");
+        }
+
+        // <cac:PaymentTerms>
+        Element paymentTerms = doc.createElementNS(NS_CAC, "cac:PaymentTerms");
+
+        // <cbc:ID>Detraccion</cbc:ID>
+        addCbcElement(doc, paymentTerms, "ID", "Detraccion");
+
+        // <cbc:PaymentMeansID>[código catálogo 54]</cbc:PaymentMeansID>
+        Element paymentMeansID = addCbcElement(doc, paymentTerms, "PaymentMeansID",
+                comprobante.getCodigoDetraccion());
+        paymentMeansID.setAttribute("schemeName", "SUNAT:Codigo de detraccion");
+        paymentMeansID.setAttribute("schemeAgencyName", "PE:SUNAT");
+        paymentMeansID.setAttribute("schemeURI", "urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo54");
+
+        // <cbc:PaymentPercent>[porcentaje]</cbc:PaymentPercent>
+        addCbcElement(doc, paymentTerms, "PaymentPercent",
+                comprobante.getPorcentajeDetraccion().setScale(2, RoundingMode.HALF_UP).toPlainString());
+
+        // <cbc:Amount currencyID="PEN">[monto]</cbc:Amount>
+        Element amount = addCbcElement(doc, paymentTerms, "Amount",
+                comprobante.getMontoDetraccion().setScale(2, RoundingMode.HALF_UP).toPlainString());
+        amount.setAttribute("currencyID", comprobante.getMoneda() != null 
+                ? comprobante.getMoneda() : "PEN");
+
+        root.appendChild(paymentTerms);
+    }
 }
+
+

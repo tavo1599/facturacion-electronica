@@ -159,4 +159,23 @@ public class ComprobanteRequestDTO {
     public String getNombreArchivo() {
         return String.format("%s-%s-%s-%08d", empresa.getRuc(), tipoComprobante, serie, correlativo);
     }
+
+    // ============================================================
+    // DETRACCIÓN SUNAT (opcional)
+    // ============================================================
+
+    @Schema(description = "¿Aplica detracción?", example = "false")
+    private Boolean tieneDetraccion;
+
+    @Schema(description = "Código detracción del Catálogo 54 SUNAT", example = "022")
+    private String codigoDetraccion;
+
+    @Schema(description = "Porcentaje de detracción", example = "12.00")
+    private BigDecimal porcentajeDetraccion;
+
+    @Schema(description = "Monto de detracción calculado", example = "120.00")
+    private BigDecimal montoDetraccion;
+
+    @Schema(description = "Saldo a pagar (importe total - detracción)", example = "880.00")
+    private BigDecimal saldoAPagar;
 }

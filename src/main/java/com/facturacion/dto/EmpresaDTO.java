@@ -64,6 +64,11 @@ public class EmpresaDTO {
     @Schema(description = "Client Secret para API REST SUNAT (Guías)", example = "")
     private String clientSecret;
 
+    // --- Detracción ---
+
+    @Schema(description = "Cuenta detracción Banco de la Nación", example = "00-000-123456")
+    private String cuentaDetraccionBN;
+
     // --- Helpers ---
 
     /**
