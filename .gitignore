@@ -34,9 +34,14 @@ release.properties
 *.tar.gz
 *.rar
 
-# Certificates (sensitive)
-certificates/*/certificate.pfx
-certificates/*/certificate.password
+# Certificates (sensitive) - ignorar CUALQUIER certificado/clave en cualquier subnivel
+# (la estructura real es certificates/{ambiente}/{ruc}/certificate.pfx, dos niveles;
+#  la regla anterior con un solo * NO cubría subcarpetas y por eso se subieron)
+certificates/**/*.pfx
+certificates/**/*.password
+certificates/**/*.cer
+certificates/**/*.key
+certificates/**/*.p12
 
 # Generated files
 generated-xml/

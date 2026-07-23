@@ -1,6 +1,12 @@
 server:
   port: 8089
 
+# Seguridad: clave compartida que exige el ApiKeyFilter en /api/**.
+# Si queda vacía, el filtro NO exige nada (útil para no bloquear el despliegue).
+# Definir MOTOR_API_KEY (misma que JAVA_MOTOR_API_KEY del backend) para activarlo.
+security:
+  api-key: ${MOTOR_API_KEY:}
+
 sunat:
   endpoints:
     # SOAP - Facturas, Boletas, Notas, Bajas, Resúmenes
